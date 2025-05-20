@@ -37,33 +37,49 @@ function draw() {
 
   // Draw grid
   ctx.save();
-  ctx.strokeStyle = '#444';
   ctx.lineWidth = 1;
   const gridSize = 100;
   const startX = Math.floor(offsetX / gridSize) * gridSize;
   const startY = Math.floor(offsetY / gridSize) * gridSize;
-  for (
-    let x = startX;
-    x < offsetX + canvas.width / scale + gridSize;
-    x += gridSize
-  ) {
+  const endX = offsetX + canvas.width / scale + gridSize;
+  const endY = offsetY + canvas.height / scale + gridSize;
+
+  // Draw vertical lines
+  for ( let x = startX; x < endX; x += gridSize) {
     const sx = worldToScreen(x, 0).x;
     ctx.beginPath();
     ctx.moveTo(sx, 0);
     ctx.lineTo(sx, canvas.height);
+    // Calculate world index for this line
+    const worldIndex = Math.round(x / gridSize);
+    if (worldIndex % 5 === 0) {
+      ctx.strokeStyle = '#888';
+      ctx.globalAlpha = 1.0;
+    } else {
+        ctx.strokeStyle = '#444';
+        ctx.globalAlpha = 0.5;
+    }
     ctx.stroke();
   }
-  for (
-    let y = startY;
-    y < offsetY + canvas.height / scale + gridSize;
-    y += gridSize
-  ) {
+
+  // Draw horizontal lines
+  for ( let y = startY; y < endY; y += gridSize) {
     const sy = worldToScreen(0, y).y;
     ctx.beginPath();
     ctx.moveTo(0, sy);
     ctx.lineTo(canvas.width, sy);
     ctx.stroke();
+    // Calculate world index for this line
+    const worldIndex = Math.round(y / gridSize);
+    if (worldIndex % 5 === 0) {
+      ctx.strokeStyle = '#888';
+      ctx.globalAlpha = 1.0;
+    } else {
+        ctx.strokeStyle = '#444';
+        ctx.globalAlpha = 0.5;
+    }
   }
+  ctx.strokeAlpha = 1.0; // Reset alpha for other drawings
   ctx.restore();
 
   // Draw targets
@@ -80,9 +96,12 @@ function draw() {
 
 // Mouse events for panning
 canvas.addEventListener('mousedown', (e) => {
-  isDragging = true;
-  lastX = e.clientX;
-  lastY = e.clientY;
+    if (e.button !== 1) return; // Only middle mouse button
+        isDragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        // Prevent default to avoid scrolling the page
+        e.preventDefault();
 });
 
 window.addEventListener('mousemove', (e) => {
@@ -97,8 +116,9 @@ window.addEventListener('mousemove', (e) => {
   }
 });
 
-window.addEventListener('mouseup', () => {
-  isDragging = false;
+window.addEventListener('mouseup', (e) => {
+    if (e.button !== 1) return; // Only middle mouse button)
+    isDragging = false;
 });
 
 // Zoom with mouse wheel
@@ -123,6 +143,11 @@ canvas.addEventListener('dblclick', (e) => {
   const { x, y } = screenToWorld(e.offsetX, e.offsetY);
   targets.push({ x, y });
   draw();
+});
+
+// Prevent context menu on right-click
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
 });
 
 // Handle window resize
