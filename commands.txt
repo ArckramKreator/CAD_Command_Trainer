@@ -1,0 +1,14 @@
+AA_O_<|,AREA,Da el area del poligono
+AA_A_O_<*>>|,AREA,Da el area del poligono
+AA_A_O_<<*S_<*>>|,AREA,Da el area del poligono
+AL_<><<<<>Y_|,ALIGN,Alinea el objeto
+H_|,HATCH,Hace un hatch
+BO__<*_|,BOUNDARY,Hace un perimetro cerrado
+C_<<|,CIRCLE,Hace un  circulo
+CH_|,PROPERTIES,Muestra las propiedades
+CHA_<<|,CHAMFER,Une lineas ochavandolas
+CL_<<|,CENTERLINE,Hace una linea al centro
+CO_<*><*>|,COPY,Copia el objeto
+E_<*>|,ERASE,Borra el objeto
+L_<<*>|,LINE,Hace lineas
+EL_<<<|,ELLIPSE,Hace elipse

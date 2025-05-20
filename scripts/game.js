@@ -16,6 +16,7 @@ let bottomInput = '';
 let blinkState = true;
 
 const targets = [];
+let commands = [];
 
 const MIN_SCALE = 0.02; // Minimum zoom out (2%)
 const MAX_SCALE = 2; // Maximum zoom in (400%)
@@ -132,7 +133,17 @@ function draw() {
     ctx.font = 'bold 25px "IBM Plex Mono", "DM Mono", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('This is the top text box', canvas.width / 2, topBoxY + topBoxHeight / 2);
+
+    const topText = commands.length > 0
+        //? `${commands[0].command} — ${commands[0].short}: ${commands[0].long}`
+        ? `${commands[0].command}`
+        : 'No command loaded';
+
+    ctx.fillText(
+        topText,
+        canvas.width / 2,
+        topBoxY + topBoxHeight / 2
+    );
     ctx.restore();
 
     // Draw bottom text box
@@ -241,7 +252,7 @@ window.addEventListener('keydown', (e) =>{
     } else if (e.key.length === 1) {
         // Only add printable characters
         bottomInput += e.key;
-    } else if (e.key === 'Enter') {
+    } else if (e.key === 'Enter' || e.key === 'Space') {
         // Optionally, handle enter (e.g., submit or clear)
         // bottomInput = '';
         bottomInput = '';
@@ -309,6 +320,43 @@ canvas.addEventListener('dblclick', (e) =>{
     draw();
 });
 
+
+
+// Function to parse a command line from commands.txt
+function parseCommandLine(line) {
+  // Split only on the first two commas
+  const parts = line.split(',');
+  if (parts.length < 3) return null;
+  // Rejoin in case LONGDescription contains commas
+  const [command, shortDesc, ...longDescArr] = parts;
+  const longDesc = longDescArr.join(',');
+  return {
+    command: command.trim(),
+    short: shortDesc.trim(),
+    long: longDesc.trim()
+  };
+}
+
+// Load commands from commands.txt
+function loadCommands() {
+  fetch('commands.txt')
+    .then(response => response.text())
+    .then(text => {
+      commands = text
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#')) // skip empty and comment lines
+        .map(parseCommandLine)
+        .filter(cmd => cmd !== null);
+      console.log(commands);
+      draw();
+    })
+    .catch(err => {
+      console.error('Failed to load commands.txt:', err);
+    });
+}
+
+
 // Prevent context menu on right-click
 canvas.addEventListener('contextmenu', (e) =>{
     e.preventDefault();
@@ -324,4 +372,6 @@ window.addEventListener('resize', () =>{
 // Initial setup
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
+loadCommands();
 draw();
+
