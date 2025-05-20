@@ -1,21 +1,103 @@
-﻿body
-{
-}
-body {
+﻿body {
     margin: 0;
     overflow: hidden;
     display: flex;
-    justify-content: center; /* Center horizontally */
-    align-items: flex-start; /* Align to the top vertically */
+    flex-direction: column; /* Stack header, nav, and canvas vertically */
+    align-items: center; /* Align to the top vertically */
     height: 100vh; /* Ensure body takes full viewport height */
+
+
+    font-family: IBM Plex Mono, monospace;
+    background-image: linear-gradient(90deg, #030014 0, #080033 50%, #030014);
+    color: #fff;
+
+    width: 100vw;
 }
+
+
+header {
+    z-index: 50;
+    width: 100vw;
+    height: 7vh;
+    background: #333;
+    background: #030032;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+    header h1 {
+        font-size: 2vh;
+        margin: 0;
+        letter-spacing: 2px;
+    }
+
+header .container-lg:before {
+    background: radial-gradient(62.87% 100% at 50% 100%,#ffffff38 0,#fff0 100%);
+    bottom: 0;
+    content: "";
+    height: 1px;
+    left: 0;
+    position: absolute;
+    width: 100%
+}
+.container-lg {
+    margin: 0 auto;
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    position: relative;
+    max-width: 1200px;
+    height: 100%;
+    display: flex;
+}
+
+nav {
+    height: 5vh;
+    display: flex;
+    align-items: center;
+}
+
+    nav ul {
+        list-style: none;
+        display: flex;
+        margin: 0;
+        padding: 0 2vw;
+        height: 100%;
+    }
+
+    nav li {
+        margin-right: 2vw;
+        height: 100%;
+        display: flex;
+        align-items: center;
+    }
+
+    nav a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 1.8vh;
+        padding: 0 1vw;
+        transition: background 0.2s;
+        border-radius: 4px;
+        height: 60%;
+        display: flex;
+        align-items: center;
+    }
+
+        nav a:hover {
+            background: #444;
+        }
+
+
+
 
 canvas {
     display: block;
     background: #222;
     /* Make canvas fill the window */
     width: 98vw;
-    height: 90vh;
+    height: 88vh;
     border: 1px solid #fff;
+    margin: auto 0 auto 0;
     box-shadow: 0 0 10px #000;
 }

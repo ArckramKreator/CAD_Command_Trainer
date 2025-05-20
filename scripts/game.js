@@ -4,7 +4,7 @@ const ctx = canvas.getContext('2d');
 // World state
 let offsetX = 0;
 let offsetY = 0;
-let scale = 1;
+let scale = 0.5;
 
 let isDragging = false;
 let lastX = 0;
@@ -12,8 +12,8 @@ let lastY = 0;
 
 const targets = [];
 
-const MIN_SCALE = 0.05; // Minimum zoom out (5%)
-const MAX_SCALE = 4;   // Maximum zoom in (400%)
+const MIN_SCALE = 0.02; // Minimum zoom out (2%)
+const MAX_SCALE = 2;   // Maximum zoom in (400%)
 
 
 // Utility: world <-> screen
@@ -35,6 +35,15 @@ function screenToWorld(x, y) {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // Calculate secondary line alpha based on scale
+  let secondaryAlpha = 0.5;
+  if (scale < 0.2) {
+      //fade out from 0.5 to 0.0 at scale 0.2
+      const minScale= 0.09;
+      const maxScale = 0.2;
+      secondaryAlpha =  (scale - minScale) / (maxScale - minScale) * 0.5;
+      secondaryAlpha = Math.max(0, Math.min(secondaryAlpha, 0.5));
+  }
   // Draw grid
   ctx.save();
   ctx.lineWidth = 1;
@@ -50,6 +59,7 @@ function draw() {
     ctx.beginPath();
     ctx.moveTo(sx, 0);
     ctx.lineTo(sx, canvas.height);
+
     // Calculate world index for this line
     const worldIndex = Math.round(x / gridSize);
     if (worldIndex % 5 === 0) {
@@ -57,7 +67,7 @@ function draw() {
       ctx.globalAlpha = 1.0;
     } else {
         ctx.strokeStyle = '#444';
-        ctx.globalAlpha = 0.5;
+        ctx.globalAlpha = secondaryAlpha;
     }
     ctx.stroke();
   }
@@ -76,7 +86,7 @@ function draw() {
       ctx.globalAlpha = 1.0;
     } else {
         ctx.strokeStyle = '#444';
-        ctx.globalAlpha = 0.5;
+        ctx.globalAlpha = secondaryAlpha;
     }
   }
   ctx.strokeAlpha = 1.0; // Reset alpha for other drawings
