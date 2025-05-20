@@ -1,0 +1,15 @@
+﻿body
+{
+}
+body {
+    margin: 0;
+    overflow: hidden;
+}
+
+canvas {
+    display: block;
+    background: #222;
+    /* Make canvas fill the window */
+    width: 100vw;
+    height: 100vh;
+}
