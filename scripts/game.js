@@ -329,7 +329,7 @@ canvas.addEventListener('dblclick', (e) =>{
     const {
         x,
         y
-    } = screenToWorld(e.GameState.viewport.offsetX, e.GameState.viewport.offsetY);
+    } = screenToWorld(e.offsetX, e.offsetY);
     GameState.targets.push({
         x,
         y
