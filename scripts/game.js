@@ -1,38 +1,46 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// World state
-let isCanvasActive = false;
+// Main Game State Object 
+const GameState = {
 
-let offsetX = 0;
-let offsetY = 0;
-let scale = 0.5;
+    viewport: {
+        offsetX: 0,
+        offsetY: 0,
+        scale: 0.5,
+        MIN_SCALE: 0.02,
+        MAX_SCALE: 2
+    },
 
-let isDragging = false;
-let lastX = 0;
-let lastY = 0;
+    mouse: {
+        isDragging: false,
+        lastX: 0,
+        lastY: 0
+    },
 
-let bottomInput = '';
-let blinkState = true;
+    input: {
+        active: false,
+        buffer: '',
+        blink: true
+    },
 
-const targets = [];
-let commands = [];
+    commands: [],
 
-const MIN_SCALE = 0.02; // Minimum zoom out (2%)
-const MAX_SCALE = 2; // Maximum zoom in (400%)
+    targets: []
+};
 
 // Utility: world <-> screen
 function worldToScreen(x, y) {
     return {
-        x: (x - offsetX) * scale,
-        y: (y - offsetY) * scale,
+        x: (x - GameState.viewport.offsetX) * GameState.viewport.scale,
+        y: (y - GameState.viewport.offsetY) * GameState.viewport.scale,
     };
 }
 
 function screenToWorld(x, y) {
     return {
-        x: x / scale + offsetX,
-        y: y / scale + offsetY,
+        x: x / GameState.viewport.scale + GameState.viewport.offsetX,
+        y: y / GameState.viewport.scale + GameState.viewport.offsetY,
     };
 }
 
@@ -42,21 +50,26 @@ function draw() {
 
     // Calculate secondary line alpha based on scale
     let secondaryAlpha = 0.5;
-    if (scale < 0.2) {
-        //fade out from 0.5 to 0.0 at scale 0.2
-        const minScale = 0.09;
-        const maxScale = 0.2;
-        secondaryAlpha = (scale - minScale) / (maxScale - minScale) * 0.5;
-        secondaryAlpha = Math.max(0, Math.min(secondaryAlpha, 0.5));
+
+    const minScale = 0.09;
+    const maxScale = 0.2;
+
+    if (GameState.viewport.scale < minScale) {
+        secondaryAlpha = 0;
+    } else if (GameState.viewport.scale > maxScale) {
+        secondaryAlpha = 0.5;
+    } else {
+        const t = (GameState.viewport.scale - minScale) / (maxScale - minScale) ;
+        secondaryAlpha = t * 0.5;
     }
     // Draw grid
     ctx.save();
     ctx.lineWidth = 1;
     const gridSize = 100;
-    const startX = Math.floor(offsetX / gridSize) * gridSize;
-    const startY = Math.floor(offsetY / gridSize) * gridSize;
-    const endX = offsetX + canvas.width / scale + gridSize;
-    const endY = offsetY + canvas.height / scale + gridSize;
+    const startX = Math.floor(GameState.viewport.offsetX / gridSize) * gridSize;
+    const startY = Math.floor(GameState.viewport.offsetY / gridSize) * gridSize;
+    const endX = GameState.viewport.offsetX + canvas.width / GameState.viewport.scale + gridSize;
+    const endY = GameState.viewport.offsetY + canvas.height / GameState.viewport.scale + gridSize;
 
     // Draw vertical lines
     for (let x = startX; x < endX; x += gridSize) {
@@ -98,13 +111,13 @@ function draw() {
     ctx.restore();
 
     // Draw targets
-    for (const target of targets) {
+    for (const target of GameState.targets) {
         const {
             x,
             y
         } = worldToScreen(target.x, target.y);
         ctx.beginPath();
-        ctx.arc(x, y, 15 * scale, 0, 2 * Math.PI);
+        ctx.arc(x, y, 15 * GameState.viewport.scale, 0, 2 * Math.PI);
         ctx.fillStyle = 'red';
         ctx.fill();
         ctx.strokeStyle = 'white';
@@ -134,9 +147,9 @@ function draw() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const topText = commands.length > 0
-        //? `${commands[0].command} � ${commands[0].short}: ${commands[0].long}`
-        ? `${commands[0].command}`
+    const topText = GameState.commands.length > 0
+        //? `${GameState.commands[0].command} � ${GameState.commands[0].short}: ${GameState.commands[0].long}`
+        ? `${GameState.commands[0].command}`
         : 'No command loaded';
 
     ctx.fillText(
@@ -155,7 +168,7 @@ function draw() {
     ctx.save();
 
     ctx.fillStyle = '#181830';
-    ctx.strokeStyle = isCanvasActive ? '#4af' : '#fff';
+    ctx.strokeStyle = GameState.input.active ? '#4af' : '#fff';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.roundRect(bottomBoxX, bottomBoxY, bottomBoxWidth, bottomBoxHeight, 10);
@@ -173,12 +186,12 @@ function draw() {
     const padding = 16;
 
     // Compose the text with the cursor always present for measurement
-    const displayTextWithCursor = bottomInput + '|';
+    const displayTextWithCursor = GameState.input.buffer + '|';
     const visibleTextWithCursor = getVisibleInputText(ctx, displayTextWithCursor, font, bottomBoxWidth, padding);
 
     // Now, if the blinker is on, draw as is. If not, draw without the cursor.
     let textToDraw;
-    if (isCanvasActive && blinkState) {
+    if (GameState.input.active && GameState.input.blink) {
         textToDraw = visibleTextWithCursor;
     } else {
         // Remove the cursor only if it's at the end
@@ -199,14 +212,14 @@ function draw() {
 }
 
 setInterval(() => {
-  blinkState = !blinkState;
-  if (isCanvasActive) draw();
+  GameState.input.blink = !GameState.input.blink;
+  if (GameState.input.active) draw();
 }, 500); // 500ms = 1 blink per second
 
 
 window.addEventListener('mousedown', (e) => {
   if (e.target !== canvas) {
-    isCanvasActive = false;
+    GameState.input.active = false;
     draw();
   }
 });
@@ -236,24 +249,25 @@ function getVisibleInputText(ctx, text, font, boxWidth, padding) {
 // Text imput handling
 window.addEventListener('keydown', (e) =>{
     
-    if (!isCanvasActive) return;
+    if (!GameState.input.active) return;
+
+    e.preventDefault();
 
     // Ignore key events if the user is holding a modifier (Ctrl, Alt, Meta)
     if (e.ctrlKey || e.altKey || e.metaKey) return;
 
     if (e.key === 'Backspace') {
-        bottomInput = bottomInput.slice(0, -1);
+        GameState.input.buffer = GameState.input.buffer.slice(0, -1);
         e.preventDefault();
-    } else if (e.key.length === 1) {
-        // Only add printable characters
-        bottomInput += e.key;
-    } else if (e.key === 'Enter' || e.key === 'Space') {
+    } else if (e.key === 'Enter' || e.code === 'Space') {
         // Optionally, handle enter (e.g., submit or clear)
-        e.preventDefault();
-        bottomInput = '';
+        GameState.input.buffer = '';
     } else if (e.key === 'Escape') {
         // Handle escape (e.g., clear input)
-        bottomInput = '';
+        GameState.input.buffer = '';
+    } else if (e.key.length === 1 && !(e.code === 'Space')) {
+        // Only add printable characters
+        GameState.input.buffer += e.key;
     }
     draw();
 });
@@ -261,13 +275,13 @@ window.addEventListener('keydown', (e) =>{
 // Mouse events for panning
 canvas.addEventListener('mousedown', (e) =>{
     // 1. Activate text input focus
-    isCanvasActive = true;
+    GameState.input.active = true;
     
     // 2. Handle middle-button panning
     if (e.button == 1){ 
-        isDragging = true;
-        lastX = e.clientX;
-        lastY = e.clientY;
+        GameState.mouse.isDragging = true;
+        GameState.mouse.lastX = e.clientX;
+        GameState.mouse.lastY = e.clientY;
         // Prevent default to avoid scrolling the page
         e.preventDefault();
     }
@@ -277,35 +291,35 @@ canvas.addEventListener('mousedown', (e) =>{
 
 
 window.addEventListener('mousemove', (e) =>{
-    if (isDragging) {
-        const dx = (e.clientX - lastX) / scale;
-        const dy = (e.clientY - lastY) / scale;
-        offsetX -= dx;
-        offsetY -= dy;
-        lastX = e.clientX;
-        lastY = e.clientY;
+    if (GameState.mouse.isDragging) {
+        const dx = (e.clientX - GameState.mouse.lastX) / GameState.viewport.scale;
+        const dy = (e.clientY - GameState.mouse.lastY) / GameState.viewport.scale;
+        GameState.viewport.offsetX -= dx;
+        GameState.viewport.offsetY -= dy;
+        GameState.mouse.lastX = e.clientX;
+        GameState.mouse.lastY = e.clientY;
         draw();
     }
 });
 
 window.addEventListener('mouseup', (e) =>{
     if (e.button !== 1) return; // Only middle mouse button)
-    isDragging = false;
+    GameState.mouse.isDragging = false;
 });
 
 // Zoom with mouse wheel
 canvas.addEventListener('wheel', (e) =>{
     e.preventDefault();
-    const mouse = screenToWorld(e.offsetX, e.offsetY);
+    const mouse = screenToWorld(e.GameState.viewport.offsetX, e.GameState.viewport.offsetY);
     const zoom = e.deltaY < 0 ? 1.1 : 0.9;
-    scale *= zoom;
+    GameState.viewport.scale *= zoom;
 
     // Clamp the scale
-    scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+    GameState.viewport.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, GameState.viewport.scale));
 
     // Keep zoom centered on mouse
-    offsetX = mouse.x - (e.offsetX / scale);
-    offsetY = mouse.y - (e.offsetY / scale);
+    GameState.viewport.offsetX = mouse.x - (e.GameState.viewport.offsetX / GameState.viewport.scale);
+    GameState.viewport.offsetY = mouse.y - (e.GameState.viewport.offsetY / GameState.viewport.scale);
 
     draw();
 });
@@ -315,49 +329,78 @@ canvas.addEventListener('dblclick', (e) =>{
     const {
         x,
         y
-    } = screenToWorld(e.offsetX, e.offsetY);
-    targets.push({
+    } = screenToWorld(e.GameState.viewport.offsetX, e.GameState.viewport.offsetY);
+    GameState.targets.push({
         x,
         y
     });
     draw();
 });
 
+// CSV parsing utility
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let insideQuotes = false;
 
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
 
-// Function to parse a command line from commands.txt
-function parseCommandLine(line) {
-  // Split only on the first two commas
-  const parts = line.split(',');
-  if (parts.length < 3) return null;
-  // Rejoin in case LONGDescription contains commas
-  const [command, shortDesc, ...longDescArr] = parts;
-  const longDesc = longDescArr.join(',');
-  return {
-    command: command.trim(),
-    short: shortDesc.trim(),
-    long: longDesc.trim()
-  };
+        if (char === '"') {
+            // Toggle insideQuotes unless it's an escaped quote ("")
+            if (line[i + 1] === '"') {
+                current += '"';
+                i++; // skip escaped quote
+            } else {
+                insideQuotes = !insideQuotes;
+            }
+        } else if (char === ',' && !insideQuotes) {
+            // Comma acts as field separator ONLY if not inside quotes
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+
+    // Add the last field
+    result.push(current.trim());
+    return result;
 }
+
+// Parse a command line into an object
+function parseCommandLine(line) {
+    const parts = parseCSVLine(line);
+    if (parts.length < 3) return null;
+
+    return {
+        command: parts[0],
+        short: parts[1],
+        long: parts.slice(2).join(',') // allows future CSV with extra parts
+    };
+}
+
 
 // Load commands from commands.txt
 function loadCommands() {
-  fetch('commands.txt')
-    .then(response => response.text())
-    .then(text => {
-      commands = text
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#')) // skip empty and comment lines
-        .map(parseCommandLine)
-        .filter(cmd => cmd !== null);
-      console.log(commands);
-      draw();
-    })
-    .catch(err => {
-      console.error('Failed to load commands.txt:', err);
-    });
+    fetch("commands.csv")
+        .then(response => response.text())
+        .then(text => {
+            GameState.commands = text
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+                .map(parseCommandLine)
+                .filter(cmd => cmd !== null);
+
+            console.log(GameState.commands);
+            draw();
+        })
+        .catch(
+            err => console.error('Failed to load commands.txt:', err)
+        );
 }
+
 
 
 // Prevent context menu on right-click
@@ -367,14 +410,14 @@ canvas.addEventListener('contextmenu', (e) =>{
 
 // Handle window resize
 window.addEventListener('resize', () =>{
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
     draw();
 });
 
 // Initial setup
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+canvas.width = canvas.clientWidth;
+canvas.height = canvas.clientHeight;
 loadCommands();
 draw();
 
