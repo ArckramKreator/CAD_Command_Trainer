@@ -135,7 +135,7 @@ function draw() {
     ctx.textBaseline = 'middle';
 
     const topText = commands.length > 0
-        //? `${commands[0].command} — ${commands[0].short}: ${commands[0].long}`
+        //? `${commands[0].command} ï¿½ ${commands[0].short}: ${commands[0].long}`
         ? `${commands[0].command}`
         : 'No command loaded';
 
@@ -204,11 +204,6 @@ setInterval(() => {
 }, 500); // 500ms = 1 blink per second
 
 
-canvas.addEventListener('mousedown', () => {
-  isCanvasActive = true;
-  draw();
-});
-
 window.addEventListener('mousedown', (e) => {
   if (e.target !== canvas) {
     isCanvasActive = false;
@@ -254,7 +249,7 @@ window.addEventListener('keydown', (e) =>{
         bottomInput += e.key;
     } else if (e.key === 'Enter' || e.key === 'Space') {
         // Optionally, handle enter (e.g., submit or clear)
-        // bottomInput = '';
+        e.preventDefault();
         bottomInput = '';
     } else if (e.key === 'Escape') {
         // Handle escape (e.g., clear input)
@@ -265,13 +260,21 @@ window.addEventListener('keydown', (e) =>{
 
 // Mouse events for panning
 canvas.addEventListener('mousedown', (e) =>{
-    if (e.button !== 1) return; // Only middle mouse button
-    isDragging = true;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    // Prevent default to avoid scrolling the page
-    e.preventDefault();
+    // 1. Activate text input focus
+    isCanvasActive = true;
+    
+    // 2. Handle middle-button panning
+    if (e.button == 1){ 
+        isDragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        // Prevent default to avoid scrolling the page
+        e.preventDefault();
+    }
+
+    draw();    
 });
+
 
 window.addEventListener('mousemove', (e) =>{
     if (isDragging) {
