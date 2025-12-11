@@ -315,7 +315,7 @@ canvas.addEventListener('wheel', (e) =>{
     GameState.viewport.scale *= zoom;
 
     // Clamp the scale
-    GameState.viewport.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, GameState.viewport.scale));
+    GameState.viewport.scale = Math.max(GameState.viewport.MIN_SCALE, Math.min(GameState.viewport.MAX_SCALE, GameState.viewport.scale));
 
     // Keep zoom centered on mouse
     GameState.viewport.offsetX = mouse.x - (e.offsetX / GameState.viewport.scale);
