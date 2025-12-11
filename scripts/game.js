@@ -310,7 +310,7 @@ window.addEventListener('mouseup', (e) =>{
 // Zoom with mouse wheel
 canvas.addEventListener('wheel', (e) =>{
     e.preventDefault();
-    const mouse = screenToWorld(e.GameState.viewport.offsetX, e.GameState.viewport.offsetY);
+    const mouse = screenToWorld(e.offsetX, e.offsetY);
     const zoom = e.deltaY < 0 ? 1.1 : 0.9;
     GameState.viewport.scale *= zoom;
 
@@ -318,8 +318,8 @@ canvas.addEventListener('wheel', (e) =>{
     GameState.viewport.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, GameState.viewport.scale));
 
     // Keep zoom centered on mouse
-    GameState.viewport.offsetX = mouse.x - (e.GameState.viewport.offsetX / GameState.viewport.scale);
-    GameState.viewport.offsetY = mouse.y - (e.GameState.viewport.offsetY / GameState.viewport.scale);
+    GameState.viewport.offsetX = mouse.x - (e.offsetX / GameState.viewport.scale);
+    GameState.viewport.offsetY = mouse.y - (e.offsetY / GameState.viewport.scale);
 
     draw();
 });
