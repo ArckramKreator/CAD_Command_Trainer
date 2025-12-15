@@ -252,11 +252,26 @@ function draw() {
         ? `${GameState.commands[0].command}`
         : 'No command loaded';
 
+if (GameState.commands.length > 0) {
+    const tokens = parseCommandTokens(GameState.commands[0].command);
+
+    const totalWidth = 800; // approximate center area
+    const startX = (canvas.width - totalWidth) / 2;
+
+    drawCommandTokens(
+        ctx,
+        tokens,
+        startX,
+        topBoxY + topBoxHeight / 2
+    );
+} else {
     ctx.fillText(
-        topText,
+        'No command loaded',
         canvas.width / 2,
         topBoxY + topBoxHeight / 2
     );
+}
+
     ctx.restore();
 
     // Info box (right side of top box)
@@ -395,6 +410,169 @@ function draw() {
     
 
 }
+
+// Command parsing utility
+function parseCommandTokens(command) {
+    const tokens = [];
+    let i = 0;
+
+    while (i < command.length) {
+        const char = command[i];
+
+        // Right-click with target number >#*
+        if (char === '>' && /\d/.test(command[i + 1])) {
+            let num = '';
+            i++;
+            while (/\d/.test(command[i])) {
+                num += command[i];
+                i++;
+            }
+            if (command[i] === '*') {
+                tokens.push({ type: 'RIGHT_TARGET', value: num });
+                i++;
+                continue;
+            }
+        }
+
+        // Left-click with target number <#*
+        if (char === '<' && /\d/.test(command[i + 1])) {
+            let num = '';
+            i++;
+            while (/\d/.test(command[i])) {
+                num += command[i];
+                i++;
+            }
+            if (command[i] === '*') {
+                tokens.push({ type: 'LEFT_TARGET', value: num });
+                i++;
+                continue;
+            }
+        }
+
+        // Single-character tokens
+        switch (char) {
+            case '>':
+                tokens.push({ type: 'RIGHT_CLICK' });
+                break;
+            case '<':
+                tokens.push({ type: 'LEFT_CLICK' });
+                break;
+            case '_':
+                tokens.push({ type: 'ENTER' });
+                break;
+            case '|':
+                tokens.push({ type: 'ESC' });
+                break;
+            default:
+                tokens.push({ type: 'TEXT', value: char });
+        }
+
+        i++;
+    }
+
+    return tokens;
+}
+
+// Drawing command tokens
+function drawCommandTokens(ctx, tokens, startX, centerY) {
+    let x = startX;
+
+    ctx.textBaseline = 'middle';
+
+    for (const token of tokens) {
+        switch (token.type) {
+            case 'TEXT':
+                ctx.font = 'bold 25px "IBM Plex Mono", monospace';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(token.value, x, centerY);
+                x += ctx.measureText(token.value).width;
+                break;
+
+            case 'LEFT_CLICK':
+                x = drawMouseIcon(ctx, x, centerY, 'L');
+                break;
+
+            case 'RIGHT_CLICK':
+                x = drawMouseIcon(ctx, x, centerY, 'R');
+                break;
+
+            case 'LEFT_TARGET':
+                x = drawMouseIcon(ctx, x, centerY, 'L', token.value);
+                break;
+
+            case 'RIGHT_TARGET':
+                x = drawMouseIcon(ctx, x, centerY, 'R', token.value);
+                break;
+
+            case 'ENTER':
+                x = drawKeyIcon(ctx, x, centerY, '⏎');
+                break;
+
+            case 'ESC':
+                x = drawKeyIcon(ctx, x, centerY, 'ESC');
+                break;
+        }
+
+        x += 6; // spacing between tokens
+    }
+}
+
+function drawMouseIcon(ctx, x, y, button, label = null) {
+    const w = 26;
+    const h = 32;
+
+    ctx.save();
+
+    // Mouse body
+    ctx.fillStyle = '#333';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x, y - h / 2, w, h, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    // Button label
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(button, x + w / 2, y - 6);
+
+    // Optional target number
+    if (label !== null) {
+        ctx.font = 'bold 12px "IBM Plex Mono", monospace';
+        ctx.fillText(label, x + w / 2, y + 8);
+    }
+
+    ctx.restore();
+    return x + w;
+}
+
+function drawKeyIcon(ctx, x, y, text) {
+    const padding = 6;
+    ctx.save();
+
+    ctx.font = 'bold 14px "IBM Plex Mono", monospace';
+    const w = ctx.measureText(text).width + padding * 2;
+    const h = 24;
+
+    ctx.fillStyle = '#444';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x, y - h / 2, w, h, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, x + w / 2, y + 1);
+
+    ctx.restore();
+    return x + w;
+}
+
+
 
 // Hover detection for info box
 canvas.addEventListener('mousemove', (e) => {
