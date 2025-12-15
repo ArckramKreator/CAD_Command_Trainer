@@ -262,25 +262,28 @@ function draw() {
         ? `${GameState.commands[0].command}`
         : 'No command loaded';
 
-if (GameState.commands.length > 0) {
-    const tokens = parseCommandTokens(GameState.commands[0].command);
+    if (GameState.commands.length > 0) {
+        const tokens = parseCommandTokens(GameState.commands[0].command);
 
-    const totalWidth = 800; // approximate center area
-    const startX = (canvas.width - totalWidth) / 2;
+        // Measure actual rendered width
+        const contentWidth = measureCommandTokens(ctx, tokens);
 
-    drawCommandTokens(
-        ctx,
-        tokens,
-        startX,
-        topBoxY + topBoxHeight / 2
-    );
-} else {
-    ctx.fillText(
-        'No command loaded',
-        canvas.width / 2,
-        topBoxY + topBoxHeight / 2
-    );
-}
+        // True centered start position
+        const startX = (canvas.width - contentWidth) / 2;
+
+        drawCommandTokens(
+            ctx,
+            tokens,
+            startX,
+            topBoxY + topBoxHeight / 2
+        );
+    } else {
+        ctx.fillText(
+            'No command loaded',
+            canvas.width / 2,
+            topBoxY + topBoxHeight / 2
+        );
+    }
 
     ctx.restore();
 
@@ -495,6 +498,7 @@ function drawCommandTokens(ctx, tokens, startX, centerY) {
     ctx.textBaseline = 'middle';
 
     for (const token of tokens) {
+
         switch (token.type) {
             case 'TEXT':
                 ctx.font = 'bold 25px "IBM Plex Mono", monospace';
@@ -504,32 +508,80 @@ function drawCommandTokens(ctx, tokens, startX, centerY) {
                 break;
 
             case 'LEFT_CLICK':
-                x = drawMouseIcon(ctx, x, centerY, 'L');
+                x = drawIcon(ctx, x, centerY, button = 'L', null, null);
                 break;
 
             case 'RIGHT_CLICK':
-                x = drawMouseIcon(ctx, x, centerY, 'R');
+                x = drawIcon(ctx, x, centerY, button = 'R', null, null);
                 break;
 
             case 'LEFT_TARGET':
-                x = drawMouseIcon(ctx, x, centerY, 'L', token.value);
+                x = drawIcon(ctx, x, centerY, button = 'L', token.value, null);
                 break;
 
             case 'RIGHT_TARGET':
-                x = drawMouseIcon(ctx, x, centerY, 'R', token.value);
+                x = drawIcon(ctx, x, centerY, button = 'R', token.value, null);
                 break;
 
             case 'ENTER':
-                x = drawKeyIcon(ctx, x, centerY, '⏎');
+                x = drawIcon(ctx, x, centerY, null, null, text = '⏎');
                 break;
 
             case 'ESC':
-                x = drawKeyIcon(ctx, x, centerY, 'ESC');
+                x = drawIcon(ctx, x, centerY, null, null, text = 'ESC');
+                break;
+        }
+        x += 10; // spacing between tokens
+    }
+}
+
+// Measure command tokens width
+function measureCommandTokens(ctx, tokens) {
+    let width = 0;
+
+    for (const token of tokens) {
+        switch (token.type) {
+            case 'TEXT':
+                ctx.font = 'bold 25px "IBM Plex Mono", monospace';
+                width += ctx.measureText(token.value).width;
+                break;
+
+            case 'LEFT_CLICK':
+            case 'RIGHT_CLICK':
+                width += 26; // mouse icon width
+                break;
+
+            case 'LEFT_TARGET':
+            case 'RIGHT_TARGET':
+                width += 26; // mouse icon width (same)
+                break;
+
+            case 'ENTER':
+                ctx.font = 'bold 14px "IBM Plex Mono", monospace';
+                width += ctx.measureText('⏎').width + 12;
+                break;
+
+            case 'ESC':
+                ctx.font = 'bold 14px "IBM Plex Mono", monospace';
+                width += ctx.measureText('ESC').width + 12;
                 break;
         }
 
-        x += 6; // spacing between tokens
+        width += 6; // spacing between tokens
     }
+
+    return width;
+}
+
+function drawIcon(ctx, x, y, button = null, label = null, text = null) {
+    console.log(button, label, text);
+    if (button !== null && text === null) {
+        return drawMouseIcon(ctx, x, y, button, label);
+    }
+    else if (text !== null && button === null) {
+        return drawKeyIcon(ctx, x, y, text);
+    }
+
 }
 
 function drawMouseIcon(ctx, x, y, button, label = null) {
@@ -543,15 +595,25 @@ function drawMouseIcon(ctx, x, y, button, label = null) {
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(x, y - h / 2, w, h, 6);
+    ctx.roundRect(x - w / 4, y - h / 2, w, h, 6);
     ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x - w / 4, y - 5);
+    ctx.lineTo(x - w / 4 + w, y - 5);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x - w / 4 + w/2, y-h/2);
+    ctx.lineTo(x - w / 4 + w / 2, y - 5);
     ctx.stroke();
 
     // Button label
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 14px "IBM Plex Mono", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(button, x + w / 2, y - 6);
+    ctx.fillText(button, x + w / 2 - w / 4, y +6);
 
     // Optional target number
     if (label !== null) {
@@ -575,13 +637,13 @@ function drawKeyIcon(ctx, x, y, text) {
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(x, y - h / 2, w, h, 4);
+    ctx.roundRect(x - w / 4, y - h / 2, w, h, 4);
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.fillText(text, x + w / 2, y + 1);
+    ctx.fillText(text, x + w / 2 - w / 4, y + 1);
 
     ctx.restore();
     return x + w;
