@@ -1,3 +1,9 @@
+// Game.js - Main game logic for the web - based target interaction simulator
+
+// ============================================================
+// Game State (Single Source of Truth)
+// ============================================================
+
 // Get canvas and context
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -42,13 +48,9 @@ const GameState = {
     debugMode: true
 };
 
-// Toggle debug mode
-window.toggleDebug = function () {
-    GameState.debugMode = !GameState.debugMode;
-    console.log(`Debug mode ${GameState.debugMode ? 'ENABLED' : 'DISABLED'}`);
-};
-
-// Target class
+// ============================================================
+// Target Class
+// ============================================================
 class Target {
     constructor(x, y, id) {
         this.x = x;
@@ -138,7 +140,11 @@ class Target {
     }
 }
 
-// Utility: world <-> screen
+// ============================================================
+// Coordinate Conversion Utilities
+// ============================================================
+
+// Utility: world -> screen
 function worldToScreen(x, y) {
     return {
         x: (x - GameState.viewport.offsetX) * GameState.viewport.scale,
@@ -146,6 +152,7 @@ function worldToScreen(x, y) {
     };
 }
 
+// Utility: screen -> world
 function screenToWorld(x, y) {
     return {
         x: x / GameState.viewport.scale + GameState.viewport.offsetX,
@@ -153,7 +160,10 @@ function screenToWorld(x, y) {
     };
 }
 
-// Main draw function
+
+// ============================================================
+// Main Draw Function
+// ============================================================
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -411,6 +421,11 @@ if (GameState.commands.length > 0) {
 
 }
 
+
+// ============================================================
+// Command Token Parsing and Drawing
+// ============================================================
+
 // Command parsing utility
 function parseCommandTokens(command) {
     const tokens = [];
@@ -572,7 +587,9 @@ function drawKeyIcon(ctx, x, y, text) {
     return x + w;
 }
 
-
+// ============================================================
+// UI Interaction Events
+// ============================================================
 
 // Hover detection for info box
 canvas.addEventListener('mousemove', (e) => {
@@ -585,6 +602,9 @@ canvas.addEventListener('mousemove', (e) => {
         e.offsetY <= y + size;
 });
 
+// ============================================================
+// Text Wrapping Utility
+// ============================================================
 
 // Text wrapping utility
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
@@ -605,6 +625,9 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     ctx.fillText(line, x, y);
 }
 
+// ============================================================
+// Text Input Handling
+// ============================================================
 
 // Blink cursor interval
 setInterval(() => {
@@ -672,76 +695,9 @@ window.addEventListener('keydown', (e) =>{
     }
 });
 
-// Mouse events for panning
-canvas.addEventListener('mousedown', (e) =>{
-    // 1. Activate text input focus
-    GameState.input.active = true;
-    
-    // 2. Handle middle-button panning
-    if (e.button == 1){ 
-        GameState.mouse.isDragging = true;
-        GameState.mouse.lastX = e.clientX;
-        GameState.mouse.lastY = e.clientY;
-        // Prevent default to avoid scrolling the page
-        e.preventDefault();
-        // Debug log
-        if (GameState.debugMode) {
-            console.log('Started panning:');
-            console.log('\tStart offsetX =' + GameState.viewport.offsetX.toFixed(2));
-            console.log('\tStart offsetY =' + GameState.viewport.offsetY.toFixed(2));
-            console.log('\tStarting mouseX =' + GameState.mouse.lastX);
-            console.log('\tStarting mouseY =' + GameState.mouse.lastY);
-        }
-    }
-
-});
-
-// Mouse move for panning
-window.addEventListener('mousemove', (e) =>{
-    if (GameState.mouse.isDragging) {
-        const dx = (e.clientX - GameState.mouse.lastX) / GameState.viewport.scale;
-        const dy = (e.clientY - GameState.mouse.lastY) / GameState.viewport.scale;
-        GameState.viewport.offsetX -= dx;
-        GameState.viewport.offsetY -= dy;
-        GameState.mouse.lastX = e.clientX;
-        GameState.mouse.lastY = e.clientY;
-    }
-});
-
-// Stop panning on mouse up
-window.addEventListener('mouseup', (e) =>{
-    if (e.button !== 1) return; // Only middle mouse button)
-    GameState.mouse.isDragging = false;
-    // Debug log
-    if (GameState.debugMode) {
-        console.log('Stopped panning:');
-        console.log('\tFinal offsetX =' + GameState.viewport.offsetX.toFixed(2));
-        console.log('\tFinal offsetY =' + GameState.viewport.offsetY.toFixed(2));
-        console.log('\tLast mouseX =' + GameState.mouse.lastX);
-        console.log('\tLast mouseY =' + GameState.mouse.lastY);
-        
-    }
-});
-
-// Zoom with mouse wheel
-canvas.addEventListener('wheel', (e) =>{
-    e.preventDefault();
-    const mouse = screenToWorld(e.offsetX, e.offsetY);
-    const zoom = e.deltaY < 0 ? 1.1 : 0.9;
-    GameState.viewport.scale *= zoom;
-
-    // Clamp the scale
-    GameState.viewport.scale = Math.max(GameState.viewport.MIN_SCALE, Math.min(GameState.viewport.MAX_SCALE, GameState.viewport.scale));
-
-    // Keep zoom centered on mouse
-    GameState.viewport.offsetX = mouse.x - (e.offsetX / GameState.viewport.scale);
-    GameState.viewport.offsetY = mouse.y - (e.offsetY / GameState.viewport.scale);
-
-    // debug log
-    if (GameState.debugMode) {
-        console.log(`Zoomed to scale: ${GameState.viewport.scale.toFixed(3)}`);
-    }
-});
+// ============================================================
+// Target Interaction Events
+// ============================================================
 
 // Double-click to spawn a target
 canvas.addEventListener('dblclick', (e) =>{
@@ -769,7 +725,6 @@ canvas.addEventListener('mousemove', (e) => {
     }
 });
 
-
 // Click to toggle target selection
 canvas.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
@@ -796,7 +751,9 @@ canvas.addEventListener('mousedown', (e) => {
     return;
 });
 
-
+// ============================================================
+// Command Loading and Parsing
+// ============================================================
 
 // CSV parsing utility
 function parseCSVLine(line) {
@@ -877,6 +834,9 @@ function loadCommands() {
 }
 
 
+// ============================================================
+// Input Handling and Viewport Control
+// ============================================================
 
 // Prevent context menu on right-click
 canvas.addEventListener('contextmenu', (e) =>{
@@ -894,6 +854,92 @@ window.addEventListener('resize', () =>{
         console.log(`Canvas resized to ${canvas.width}x${canvas.height}`);
     }
 });
+
+// Zoom with mouse wheel
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const mouse = screenToWorld(e.offsetX, e.offsetY);
+    const zoom = e.deltaY < 0 ? 1.1 : 0.9;
+    GameState.viewport.scale *= zoom;
+
+    // Clamp the scale
+    GameState.viewport.scale = Math.max(GameState.viewport.MIN_SCALE, Math.min(GameState.viewport.MAX_SCALE, GameState.viewport.scale));
+
+    // Keep zoom centered on mouse
+    GameState.viewport.offsetX = mouse.x - (e.offsetX / GameState.viewport.scale);
+    GameState.viewport.offsetY = mouse.y - (e.offsetY / GameState.viewport.scale);
+
+    // debug log
+    if (GameState.debugMode) {
+        console.log(`Zoomed to scale: ${GameState.viewport.scale.toFixed(3)}`);
+    }
+});
+
+
+// Mouse events for panning
+canvas.addEventListener('mousedown', (e) => {
+    // 1. Activate text input focus
+    GameState.input.active = true;
+
+    // 2. Handle middle-button panning
+    if (e.button == 1) {
+        GameState.mouse.isDragging = true;
+        GameState.mouse.lastX = e.clientX;
+        GameState.mouse.lastY = e.clientY;
+        // Prevent default to avoid scrolling the page
+        e.preventDefault();
+        // Debug log
+        if (GameState.debugMode) {
+            console.log('Started panning:');
+            console.log('\tStart offsetX =' + GameState.viewport.offsetX.toFixed(2));
+            console.log('\tStart offsetY =' + GameState.viewport.offsetY.toFixed(2));
+            console.log('\tStarting mouseX =' + GameState.mouse.lastX);
+            console.log('\tStarting mouseY =' + GameState.mouse.lastY);
+        }
+    }
+
+});
+
+// Mouse move for panning
+window.addEventListener('mousemove', (e) => {
+    if (GameState.mouse.isDragging) {
+        const dx = (e.clientX - GameState.mouse.lastX) / GameState.viewport.scale;
+        const dy = (e.clientY - GameState.mouse.lastY) / GameState.viewport.scale;
+        GameState.viewport.offsetX -= dx;
+        GameState.viewport.offsetY -= dy;
+        GameState.mouse.lastX = e.clientX;
+        GameState.mouse.lastY = e.clientY;
+    }
+});
+
+// Stop panning on mouse up
+window.addEventListener('mouseup', (e) => {
+    if (e.button !== 1) return; // Only middle mouse button)
+    GameState.mouse.isDragging = false;
+    // Debug log
+    if (GameState.debugMode) {
+        console.log('Stopped panning:');
+        console.log('\tFinal offsetX =' + GameState.viewport.offsetX.toFixed(2));
+        console.log('\tFinal offsetY =' + GameState.viewport.offsetY.toFixed(2));
+        console.log('\tLast mouseX =' + GameState.mouse.lastX);
+        console.log('\tLast mouseY =' + GameState.mouse.lastY);
+
+    }
+});
+
+// ============================================================
+// Debug Utilities
+// ============================================================
+
+// Toggle debug mode
+window.toggleDebug = function () {
+    GameState.debugMode = !GameState.debugMode;
+    console.log(`Debug mode ${GameState.debugMode ? 'ENABLED' : 'DISABLED'}`);
+};
+
+// ============================================================
+// Main Loop
+// ============================================================
 
 // Initial setup
 canvas.width = canvas.clientWidth;
