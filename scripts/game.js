@@ -29,6 +29,58 @@ const GameState = {
     targets: []
 };
 
+class Target {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+
+        // Interaction state
+        this.selected = false;
+        this.hovered = false;
+
+        // Visual configuration
+        this.baseRadius = 15;
+    }
+
+    draw(ctx, viewport) {
+        const { scale } = viewport;
+
+        const screenX = (this.x - viewport.offsetX) * scale;
+        const screenY = (this.y - viewport.offsetY) * scale;
+
+        const radius = this.baseRadius * scale;
+
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+
+        // Visual priority: selected > hovered > default
+        if (this.selected) {
+            ctx.fillStyle = '#00ffff';
+        } else if (this.hovered) {
+            ctx.fillStyle = '#ffaa00';
+        } else {
+            ctx.fillStyle = '#ff0000';
+        }
+
+        ctx.fill();
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+    }
+
+    containsPoint(worldX, worldY) {
+        const dx = worldX - this.x;
+        const dy = worldY - this.y;
+        return Math.sqrt(dx * dx + dy * dy) <= this.baseRadius;
+    }
+
+    moveBy(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+    }
+}
+
 // Utility: world <-> screen
 function worldToScreen(x, y) {
     return {
@@ -112,16 +164,18 @@ function draw() {
 
     // Draw targets
     for (const target of GameState.targets) {
-        const {
-            x,
-            y
-        } = worldToScreen(target.x, target.y);
-        ctx.beginPath();
-        ctx.arc(x, y, 15 * GameState.viewport.scale, 0, 2 * Math.PI);
-        ctx.fillStyle = 'red';
-        ctx.fill();
-        ctx.strokeStyle = 'white';
-        ctx.stroke();
+        for (const target of GameState.targets) {
+            //target.draw(ctx, GameState.viewport);
+            console.log('Drawing target at:', target.x, target.y);
+
+        }
+        //ctx.beginPath();
+        //ctx.arc(x, y, 15 * GameState.viewport.scale, 0, 2 * Math.PI);
+        //ctx.fillStyle = 'red';
+        //ctx.fill();
+        //ctx.strokeStyle = 'white';
+        //ctx.stroke();
+
     }
 
     // Draw top text box
@@ -212,15 +266,14 @@ function draw() {
 }
 
 setInterval(() => {
-  GameState.input.blink = !GameState.input.blink;
-  if (GameState.input.active) draw();
-}, 500); // 500ms = 1 blink per second
+    GameState.input.blink = !GameState.input.blink;
+}, 500);
 
 
 window.addEventListener('mousedown', (e) => {
   if (e.target !== canvas) {
     GameState.input.active = false;
-    draw();
+    //draw();
   }
 });
 
@@ -269,7 +322,7 @@ window.addEventListener('keydown', (e) =>{
         // Only add printable characters
         GameState.input.buffer += e.key;
     }
-    draw();
+    //draw();
 });
 
 // Mouse events for panning
@@ -286,7 +339,7 @@ canvas.addEventListener('mousedown', (e) =>{
         e.preventDefault();
     }
 
-    draw();    
+    //draw();
 });
 
 
@@ -298,7 +351,7 @@ window.addEventListener('mousemove', (e) =>{
         GameState.viewport.offsetY -= dy;
         GameState.mouse.lastX = e.clientX;
         GameState.mouse.lastY = e.clientY;
-        draw();
+        //draw();
     }
 });
 
@@ -321,7 +374,7 @@ canvas.addEventListener('wheel', (e) =>{
     GameState.viewport.offsetX = mouse.x - (e.offsetX / GameState.viewport.scale);
     GameState.viewport.offsetY = mouse.y - (e.offsetY / GameState.viewport.scale);
 
-    draw();
+    //draw();
 });
 
 // Double-click to spawn a target
@@ -330,11 +383,11 @@ canvas.addEventListener('dblclick', (e) =>{
         x,
         y
     } = screenToWorld(e.offsetX, e.offsetY);
-    GameState.targets.push({
-        x,
-        y
-    });
-    draw();
+    GameState.targets.push(
+        new Target(x, y)
+    );
+    console.log('Spawned target at:', x, y)
+    //draw();
 });
 
 // CSV parsing utility
@@ -394,7 +447,7 @@ function loadCommands() {
                 .filter(cmd => cmd !== null);
 
             console.log(GameState.commands);
-            draw();
+            //draw();
         })
         .catch(
             err => console.error('Failed to load commands.txt:', err)
@@ -412,12 +465,20 @@ canvas.addEventListener('contextmenu', (e) =>{
 window.addEventListener('resize', () =>{
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
-    draw();
+    //draw();
 });
 
 // Initial setup
 canvas.width = canvas.clientWidth;
 canvas.height = canvas.clientHeight;
 loadCommands();
-draw();
+//draw();
+
+function loop() {
+    draw();
+    requestAnimationFrame(loop);
+}
+
+// Start the render loop
+requestAnimationFrame(loop);
 
