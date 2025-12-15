@@ -1,3 +1,10 @@
+// Game.js - Main game logic for the web - based target interaction simulator
+
+// ============================================================
+// Game State (Single Source of Truth)
+// ============================================================
+
+// Get canvas and context
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -24,12 +31,120 @@ const GameState = {
         blink: true
     },
 
+    ui: {
+        commandInfoHovered: false,
+
+        infoBox: {
+            x: 0,
+            y: 0,
+            size: 40
+        }
+    },
+
     commands: [],
 
-    targets: []
+    targets: [],
+
+    debugMode: true
 };
 
-// Utility: world <-> screen
+// ============================================================
+// Target Class
+// ============================================================
+class Target {
+    constructor(x, y, id) {
+        this.x = x;
+        this.y = y;
+
+        // Identifier (00–99 expected)
+        this.id = id;
+
+        // Interaction state
+        this.selected = false;
+        this.hovered = false;
+
+        // Visual configuration (world units)
+        this.baseRadius = 50;
+        this.lineLength = 25;
+    }
+
+    draw(ctx, viewport) {
+        const { offsetX, offsetY, scale } = viewport;
+
+        const screenX = (this.x - offsetX) * scale;
+        const screenY = (this.y - offsetY) * scale;
+
+        const radius = this.baseRadius * scale;
+        const tick = this.lineLength * scale;
+
+        // --- COLOR LOGIC ---
+        let fillColor = '#ff2828';
+        if (this.hovered) fillColor = '#ffffff';
+        else if (this.selected) fillColor = '#2828ff';
+
+        let fontColor = '#ffffff';
+        if (this.hovered) fontColor = '#000000';
+        else if (this.selected) fontColor = '#ffff00';
+
+        // --- CIRCLE ---
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+        ctx.lineWidth = Math.max(0.5, 3 * scale);
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+
+        // --- CROSSHAIR LINES ---
+        ctx.beginPath();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth =  Math.max(0.5, 3 * scale);
+
+        // Top
+        ctx.moveTo(screenX, screenY - (radius / 3) * 2);
+        ctx.lineTo(screenX, screenY - radius - tick);
+
+        // Bottom
+        ctx.moveTo(screenX, screenY + (radius / 3) * 2);
+        ctx.lineTo(screenX, screenY + radius + tick);
+
+        // Left
+        ctx.moveTo(screenX - (radius / 3) * 2, screenY);
+        ctx.lineTo(screenX - radius - tick, screenY);
+
+        // Right
+        ctx.moveTo(screenX + (radius / 3) * 2, screenY);
+        ctx.lineTo(screenX + radius + tick, screenY);
+
+        ctx.stroke();
+
+        // --- ID TEXT ---
+        ctx.fillStyle = fontColor;
+        ctx.font = `${Math.max(10, 40 * scale)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const label = String(this.id).padStart(2, '0');
+        ctx.fillText(label, screenX, screenY);
+    }
+
+    containsPoint(worldX, worldY) {
+        const dx = worldX - this.x;
+        const dy = worldY - this.y;
+        return Math.sqrt(dx * dx + dy * dy) <= this.baseRadius;
+    }
+
+    moveBy(dx, dy) {
+        this.x += dx;
+        this.y += dy;
+    }
+}
+
+// ============================================================
+// Coordinate Conversion Utilities
+// ============================================================
+
+// Utility: world -> screen
 function worldToScreen(x, y) {
     return {
         x: (x - GameState.viewport.offsetX) * GameState.viewport.scale,
@@ -37,6 +152,7 @@ function worldToScreen(x, y) {
     };
 }
 
+// Utility: screen -> world
 function screenToWorld(x, y) {
     return {
         x: x / GameState.viewport.scale + GameState.viewport.offsetX,
@@ -44,7 +160,10 @@ function screenToWorld(x, y) {
     };
 }
 
-// Draw grid and targets
+
+// ============================================================
+// Main Draw Function
+// ============================================================
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -112,16 +231,7 @@ function draw() {
 
     // Draw targets
     for (const target of GameState.targets) {
-        const {
-            x,
-            y
-        } = worldToScreen(target.x, target.y);
-        ctx.beginPath();
-        ctx.arc(x, y, 15 * GameState.viewport.scale, 0, 2 * Math.PI);
-        ctx.fillStyle = 'red';
-        ctx.fill();
-        ctx.strokeStyle = 'white';
-        ctx.stroke();
+        target.draw(ctx, GameState.viewport);
     }
 
     // Draw top text box
@@ -152,11 +262,68 @@ function draw() {
         ? `${GameState.commands[0].command}`
         : 'No command loaded';
 
-    ctx.fillText(
-        topText,
-        canvas.width / 2,
-        topBoxY + topBoxHeight / 2
+    if (GameState.commands.length > 0) {
+        const tokens = parseCommandTokens(GameState.commands[0].command);
+
+        // Measure actual rendered width
+        const contentWidth = measureCommandTokens(ctx, tokens);
+
+        // True centered start position
+        const startX = (canvas.width - contentWidth) / 2;
+
+        drawCommandTokens(
+            ctx,
+            tokens,
+            startX,
+            topBoxY + topBoxHeight / 2
+        );
+    } else {
+        ctx.fillText(
+            'No command loaded',
+            canvas.width / 2,
+            topBoxY + topBoxHeight / 2
+        );
+    }
+
+    ctx.restore();
+
+    // Info box (right side of top box)
+    const infoBox = GameState.ui.infoBox;
+
+    infoBox.size = 40;
+    infoBox.x = topBoxX + topBoxWidth + 10;
+    infoBox.y = topBoxY + (topBoxHeight - infoBox.size) / 2;
+
+
+    ctx.save();
+
+    ctx.fillStyle = GameState.ui.commandInfoHovered ? '#2a2a55' : '#181830';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    ctx.roundRect(
+        infoBox.x,
+        infoBox.y,
+        infoBox.size,
+        infoBox.size,
+        6
     );
+
+    ctx.fill();
+    ctx.stroke();
+
+    // Draw "i" icon
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 20px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(
+        'i',
+        infoBox.x + infoBox.size / 2,
+        infoBox.y + infoBox.size / 2
+    );
+
     ctx.restore();
 
     // Draw bottom text box
@@ -209,42 +376,356 @@ function draw() {
     );
     ctx.restore();
 
+    if (GameState.ui.commandInfoHovered && GameState.commands.length > 0) {
+        const cmd = GameState.commands[0];
+
+        const tooltipWidth = 300;
+        const tooltipPadding = 14;
+        const tooltipX = infoBox.x + infoBox.size + 10;
+        const tooltipY = infoBox.y;
+
+        ctx.save();
+
+        // Background
+        ctx.fillStyle = '#101025';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(tooltipX, tooltipY, tooltipWidth, 110, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+
+        // Command name
+        ctx.font = 'bold 16px "IBM Plex Mono", monospace';
+        ctx.fillText(
+            `${cmd.short}`,
+            tooltipX + tooltipPadding,
+            tooltipY + tooltipPadding
+        );
+
+        // Description
+        ctx.font = '14px "IBM Plex Mono", monospace';
+        wrapText(
+            ctx,
+            cmd.long,
+            tooltipX + tooltipPadding,
+            tooltipY + tooltipPadding + 26,
+            tooltipWidth - tooltipPadding * 2,
+            18
+        );
+
+        ctx.restore();
+    }
+    
+
 }
 
+
+// ============================================================
+// Command Token Parsing and Drawing
+// ============================================================
+
+// Command parsing utility
+function parseCommandTokens(command) {
+    const tokens = [];
+    let i = 0;
+
+    while (i < command.length) {
+        const char = command[i];
+
+        // Right-click with target number >#*
+        if (char === '>' && /\d/.test(command[i + 1])) {
+            let num = '';
+            i++;
+            while (/\d/.test(command[i])) {
+                num += command[i];
+                i++;
+            }
+            if (command[i] === '*') {
+                tokens.push({ type: 'RIGHT_TARGET', value: num });
+                i++;
+                continue;
+            }
+        }
+
+        // Left-click with target number <#*
+        if (char === '<' && /\d/.test(command[i + 1])) {
+            let num = '';
+            i++;
+            while (/\d/.test(command[i])) {
+                num += command[i];
+                i++;
+            }
+            if (command[i] === '*') {
+                tokens.push({ type: 'LEFT_TARGET', value: num });
+                i++;
+                continue;
+            }
+        }
+
+        // Single-character tokens
+        switch (char) {
+            case '>':
+                tokens.push({ type: 'RIGHT_CLICK' });
+                break;
+            case '<':
+                tokens.push({ type: 'LEFT_CLICK' });
+                break;
+            case '_':
+                tokens.push({ type: 'ENTER' });
+                break;
+            case '|':
+                tokens.push({ type: 'ESC' });
+                break;
+            default:
+                tokens.push({ type: 'TEXT', value: char });
+        }
+
+        i++;
+    }
+
+    return tokens;
+}
+
+// Drawing command tokens
+function drawCommandTokens(ctx, tokens, startX, centerY) {
+    let x = startX;
+
+    ctx.textBaseline = 'middle';
+
+    for (const token of tokens) {
+
+        switch (token.type) {
+            case 'TEXT':
+                ctx.font = 'bold 25px "IBM Plex Mono", monospace';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(token.value, x, centerY);
+                x += ctx.measureText(token.value).width;
+                break;
+
+            case 'LEFT_CLICK':
+                x = drawIcon(ctx, x, centerY, button = 'L', null, null);
+                break;
+
+            case 'RIGHT_CLICK':
+                x = drawIcon(ctx, x, centerY, button = 'R', null, null);
+                break;
+
+            case 'LEFT_TARGET':
+                x = drawIcon(ctx, x, centerY, button = 'L', token.value, null);
+                break;
+
+            case 'RIGHT_TARGET':
+                x = drawIcon(ctx, x, centerY, button = 'R', token.value, null);
+                break;
+
+            case 'ENTER':
+                x = drawIcon(ctx, x, centerY, null, null, text = '⏎');
+                break;
+
+            case 'ESC':
+                x = drawIcon(ctx, x, centerY, null, null, text = 'ESC');
+                break;
+        }
+        x += 10; // spacing between tokens
+    }
+}
+
+// Measure command tokens width
+function measureCommandTokens(ctx, tokens) {
+    let width = 0;
+
+    for (const token of tokens) {
+        switch (token.type) {
+            case 'TEXT':
+                ctx.font = 'bold 25px "IBM Plex Mono", monospace';
+                width += ctx.measureText(token.value).width;
+                break;
+
+            case 'LEFT_CLICK':
+            case 'RIGHT_CLICK':
+                width += 26; // mouse icon width
+                break;
+
+            case 'LEFT_TARGET':
+            case 'RIGHT_TARGET':
+                width += 26; // mouse icon width (same)
+                break;
+
+            case 'ENTER':
+                ctx.font = 'bold 14px "IBM Plex Mono", monospace';
+                width += ctx.measureText('⏎').width + 12;
+                break;
+
+            case 'ESC':
+                ctx.font = 'bold 14px "IBM Plex Mono", monospace';
+                width += ctx.measureText('ESC').width + 12;
+                break;
+        }
+
+        width += 6; // spacing between tokens
+    }
+
+    return width;
+}
+
+function drawIcon(ctx, x, y, button = null, label = null, text = null) {
+    console.log(button, label, text);
+    if (button !== null && text === null) {
+        return drawMouseIcon(ctx, x, y, button, label);
+    }
+    else if (text !== null && button === null) {
+        return drawKeyIcon(ctx, x, y, text);
+    }
+
+}
+
+function drawMouseIcon(ctx, x, y, button, label = null) {
+    const w = 26;
+    const h = 32;
+
+    ctx.save();
+
+    // Mouse body
+    ctx.fillStyle = '#333';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x - w / 4, y - h / 2, w, h, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x - w / 4, y - 5);
+    ctx.lineTo(x - w / 4 + w, y - 5);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x - w / 4 + w/2, y-h/2);
+    ctx.lineTo(x - w / 4 + w / 2, y - 5);
+    ctx.stroke();
+
+    // Button label
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(button, x + w / 2 - w / 4, y +6);
+
+    // Optional target number
+    if (label !== null) {
+        ctx.font = 'bold 12px "IBM Plex Mono", monospace';
+        ctx.fillText(label, x + w / 2, y + 8);
+    }
+
+    ctx.restore();
+    return x + w;
+}
+
+function drawKeyIcon(ctx, x, y, text) {
+    const padding = 6;
+    ctx.save();
+
+    ctx.font = 'bold 14px "IBM Plex Mono", monospace';
+    const w = ctx.measureText(text).width + padding * 2;
+    const h = 24;
+
+    ctx.fillStyle = '#444';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x - w / 4, y - h / 2, w, h, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, x + w / 2 - w / 4, y + 1);
+
+    ctx.restore();
+    return x + w;
+}
+
+// ============================================================
+// UI Interaction Events
+// ============================================================
+
+// Hover detection for info box
+canvas.addEventListener('mousemove', (e) => {
+    const { x, y, size } = GameState.ui.infoBox;
+
+    GameState.ui.commandInfoHovered =
+        e.offsetX >= x &&
+        e.offsetX <= x + size &&
+        e.offsetY >= y &&
+        e.offsetY <= y + size;
+});
+
+// ============================================================
+// Text Wrapping Utility
+// ============================================================
+
+// Text wrapping utility
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    let line = '';
+
+    for (let i = 0; i < words.length; i++) {
+        const testLine = line + words[i] + ' ';
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && i > 0) {
+            ctx.fillText(line, x, y);
+            line = words[i] + ' ';
+            y += lineHeight;
+        } else {
+            line = testLine;
+        }
+    }
+    ctx.fillText(line, x, y);
+}
+
+// ============================================================
+// Text Input Handling
+// ============================================================
+
+// Blink cursor interval
 setInterval(() => {
-  GameState.input.blink = !GameState.input.blink;
-  if (GameState.input.active) draw();
-}, 500); // 500ms = 1 blink per second
+    GameState.input.blink = !GameState.input.blink;
+}, 500);
 
-
+// Deactivate text input on outside click
 window.addEventListener('mousedown', (e) => {
-  if (e.target !== canvas) {
-    GameState.input.active = false;
-    draw();
-  }
+    if (e.target !== canvas) {
+        GameState.input.active = false;
+        if (GameState.debugMode) {
+            console.log('Text input deactivated');
+        }
+    }
 });
 
 // Utility function to get visible text in the input box
 function getVisibleInputText(ctx, text, font, boxWidth, padding) {
-  ctx.font = font;
-  let visibleText = text;
-  let textWidth = ctx.measureText(visibleText).width;
-  const maxWidth = boxWidth - 2 * padding;
+    ctx.font = font;
+    let visibleText = text;
+    let textWidth = ctx.measureText(visibleText).width;
+    const maxWidth = boxWidth - 2 * padding;
 
-  // If text fits, return as is
-  if (textWidth <= maxWidth) return visibleText;
+    // If text fits, return as is
+    if (textWidth <= maxWidth) return visibleText;
 
-  // Otherwise, trim from the start until it fits
-  let start = 0;
-  while (start < text.length) {
-    visibleText = text.slice(start);
-    textWidth = ctx.measureText(visibleText).width;
-    if (textWidth <= maxWidth) break;
-    start++;
-  }
-  return visibleText;
+    // Otherwise, trim from the start until it fits
+    let start = 0;
+    while (start < text.length) {
+        visibleText = text.slice(start);
+        textWidth = ctx.measureText(visibleText).width;
+        if (textWidth <= maxWidth) break;
+        start++;
+    }
+    return visibleText;
 }
-
 
 // Text imput handling
 window.addEventListener('keydown', (e) =>{
@@ -269,60 +750,16 @@ window.addEventListener('keydown', (e) =>{
         // Only add printable characters
         GameState.input.buffer += e.key;
     }
-    draw();
-});
 
-// Mouse events for panning
-canvas.addEventListener('mousedown', (e) =>{
-    // 1. Activate text input focus
-    GameState.input.active = true;
-    
-    // 2. Handle middle-button panning
-    if (e.button == 1){ 
-        GameState.mouse.isDragging = true;
-        GameState.mouse.lastX = e.clientX;
-        GameState.mouse.lastY = e.clientY;
-        // Prevent default to avoid scrolling the page
-        e.preventDefault();
-    }
-
-    draw();    
-});
-
-
-window.addEventListener('mousemove', (e) =>{
-    if (GameState.mouse.isDragging) {
-        const dx = (e.clientX - GameState.mouse.lastX) / GameState.viewport.scale;
-        const dy = (e.clientY - GameState.mouse.lastY) / GameState.viewport.scale;
-        GameState.viewport.offsetX -= dx;
-        GameState.viewport.offsetY -= dy;
-        GameState.mouse.lastX = e.clientX;
-        GameState.mouse.lastY = e.clientY;
-        draw();
+    // Debug log
+    if (GameState.debugMode) {
+        console.log(`Input buffer: "${GameState.input.buffer}"`);
     }
 });
 
-window.addEventListener('mouseup', (e) =>{
-    if (e.button !== 1) return; // Only middle mouse button)
-    GameState.mouse.isDragging = false;
-});
-
-// Zoom with mouse wheel
-canvas.addEventListener('wheel', (e) =>{
-    e.preventDefault();
-    const mouse = screenToWorld(e.offsetX, e.offsetY);
-    const zoom = e.deltaY < 0 ? 1.1 : 0.9;
-    GameState.viewport.scale *= zoom;
-
-    // Clamp the scale
-    GameState.viewport.scale = Math.max(GameState.viewport.MIN_SCALE, Math.min(GameState.viewport.MAX_SCALE, GameState.viewport.scale));
-
-    // Keep zoom centered on mouse
-    GameState.viewport.offsetX = mouse.x - (e.offsetX / GameState.viewport.scale);
-    GameState.viewport.offsetY = mouse.y - (e.offsetY / GameState.viewport.scale);
-
-    draw();
-});
+// ============================================================
+// Target Interaction Events
+// ============================================================
 
 // Double-click to spawn a target
 canvas.addEventListener('dblclick', (e) =>{
@@ -330,12 +767,55 @@ canvas.addEventListener('dblclick', (e) =>{
         x,
         y
     } = screenToWorld(e.offsetX, e.offsetY);
-    GameState.targets.push({
-        x,
-        y
-    });
-    draw();
+    GameState.targets.push(
+        new Target(x, y, GameState.targets.length + 1)
+    );
+    if (GameState.debugMode) {
+        console.log(`Spawned target ${GameState.targets.length} at (${x.toFixed(2)}, ${y.toFixed(2)})`);
+    }
 });
+
+// Hover detection
+canvas.addEventListener('mousemove', (e) => {
+    const world = screenToWorld(e.offsetX, e.offsetY);
+
+    for (const target of GameState.targets) {
+        target.hovered = target.containsPoint(world.x, world.y);
+        if (target.hovered && GameState.debugMode) {
+            console.log(`Hovering over target ${target.id}`);
+        }
+    }
+});
+
+// Click to toggle target selection
+canvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+
+    const world = screenToWorld(e.offsetX, e.offsetY);
+
+    for (const target of GameState.targets) {
+        if (target.containsPoint(world.x, world.y)) {
+            // TOGGLE selection state
+            target.selected = !target.selected;
+
+            // Debug log
+            if (GameState.debugMode) {
+                console.log(`Target ${target.id} selection toggled to ${target.selected}`);
+            }
+
+            return; // stop after first hit
+        }
+    }
+    // Debug log for no target clicked
+    if (GameState.debugMode) {
+        console.log('No target clicked');
+    }
+    return;
+});
+
+// ============================================================
+// Command Loading and Parsing
+// ============================================================
 
 // CSV parsing utility
 function parseCSVLine(line) {
@@ -363,6 +843,11 @@ function parseCSVLine(line) {
         }
     }
 
+    // Debug log
+    if (GameState.debugMode) {
+        console.log('\tCSV parsing result:', result);
+    }
+
     // Add the last field
     result.push(current.trim());
     return result;
@@ -373,6 +858,10 @@ function parseCommandLine(line) {
     const parts = parseCSVLine(line);
     if (parts.length < 3) return null;
 
+    // Debug log
+    if (GameState.debugMode) {
+        console.log('\t\tParsed command line:', parts);
+    }
     return {
         command: parts[0],
         short: parts[1],
@@ -383,6 +872,9 @@ function parseCommandLine(line) {
 
 // Load commands from commands.txt
 function loadCommands() {
+    if (GameState.debugMode) {
+        console.log('Loading commands from commands.csv...');
+    }
     fetch("commands.csv")
         .then(response => response.text())
         .then(text => {
@@ -393,8 +885,10 @@ function loadCommands() {
                 .map(parseCommandLine)
                 .filter(cmd => cmd !== null);
 
-            console.log(GameState.commands);
-            draw();
+            if (GameState.debugMode) {
+                console.log('Loaded commands:');
+                console.log('\t',GameState.commands);
+            }
         })
         .catch(
             err => console.error('Failed to load commands.txt:', err)
@@ -402,22 +896,124 @@ function loadCommands() {
 }
 
 
+// ============================================================
+// Input Handling and Viewport Control
+// ============================================================
 
 // Prevent context menu on right-click
 canvas.addEventListener('contextmenu', (e) =>{
     e.preventDefault();
+    if (GameState.debugMode) {
+        console.log('Context menu prevented');
+    }
 });
 
 // Handle window resize
 window.addEventListener('resize', () =>{
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
-    draw();
+    if (GameState.debugMode) {
+        console.log(`Canvas resized to ${canvas.width}x${canvas.height}`);
+    }
 });
+
+// Zoom with mouse wheel
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const mouse = screenToWorld(e.offsetX, e.offsetY);
+    const zoom = e.deltaY < 0 ? 1.1 : 0.9;
+    GameState.viewport.scale *= zoom;
+
+    // Clamp the scale
+    GameState.viewport.scale = Math.max(GameState.viewport.MIN_SCALE, Math.min(GameState.viewport.MAX_SCALE, GameState.viewport.scale));
+
+    // Keep zoom centered on mouse
+    GameState.viewport.offsetX = mouse.x - (e.offsetX / GameState.viewport.scale);
+    GameState.viewport.offsetY = mouse.y - (e.offsetY / GameState.viewport.scale);
+
+    // debug log
+    if (GameState.debugMode) {
+        console.log(`Zoomed to scale: ${GameState.viewport.scale.toFixed(3)}`);
+    }
+});
+
+
+// Mouse events for panning
+canvas.addEventListener('mousedown', (e) => {
+    // 1. Activate text input focus
+    GameState.input.active = true;
+
+    // 2. Handle middle-button panning
+    if (e.button == 1) {
+        GameState.mouse.isDragging = true;
+        GameState.mouse.lastX = e.clientX;
+        GameState.mouse.lastY = e.clientY;
+        // Prevent default to avoid scrolling the page
+        e.preventDefault();
+        // Debug log
+        if (GameState.debugMode) {
+            console.log('Started panning:');
+            console.log('\tStart offsetX =' + GameState.viewport.offsetX.toFixed(2));
+            console.log('\tStart offsetY =' + GameState.viewport.offsetY.toFixed(2));
+            console.log('\tStarting mouseX =' + GameState.mouse.lastX);
+            console.log('\tStarting mouseY =' + GameState.mouse.lastY);
+        }
+    }
+
+});
+
+// Mouse move for panning
+window.addEventListener('mousemove', (e) => {
+    if (GameState.mouse.isDragging) {
+        const dx = (e.clientX - GameState.mouse.lastX) / GameState.viewport.scale;
+        const dy = (e.clientY - GameState.mouse.lastY) / GameState.viewport.scale;
+        GameState.viewport.offsetX -= dx;
+        GameState.viewport.offsetY -= dy;
+        GameState.mouse.lastX = e.clientX;
+        GameState.mouse.lastY = e.clientY;
+    }
+});
+
+// Stop panning on mouse up
+window.addEventListener('mouseup', (e) => {
+    if (e.button !== 1) return; // Only middle mouse button)
+    GameState.mouse.isDragging = false;
+    // Debug log
+    if (GameState.debugMode) {
+        console.log('Stopped panning:');
+        console.log('\tFinal offsetX =' + GameState.viewport.offsetX.toFixed(2));
+        console.log('\tFinal offsetY =' + GameState.viewport.offsetY.toFixed(2));
+        console.log('\tLast mouseX =' + GameState.mouse.lastX);
+        console.log('\tLast mouseY =' + GameState.mouse.lastY);
+
+    }
+});
+
+// ============================================================
+// Debug Utilities
+// ============================================================
+
+// Toggle debug mode
+window.toggleDebug = function () {
+    GameState.debugMode = !GameState.debugMode;
+    console.log(`Debug mode ${GameState.debugMode ? 'ENABLED' : 'DISABLED'}`);
+};
+
+// ============================================================
+// Main Loop
+// ============================================================
 
 // Initial setup
 canvas.width = canvas.clientWidth;
 canvas.height = canvas.clientHeight;
 loadCommands();
-draw();
+//draw();
+
+function loop() {
+    draw();
+    requestAnimationFrame(loop);
+}
+
+// Start the render loop
+requestAnimationFrame(loop);
 
