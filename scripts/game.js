@@ -11,6 +11,8 @@ const ctx = canvas.getContext('2d');
 // Main Game State Object 
 const GameState = {
 
+    screen: 'MENU', // 'MENU' | 'TRAINING' | 'CHALLENGES' | 'GLOSSARY' | 'SETTINGS' | 'LEADERBOARD' | 'ABOUT'
+
     viewport: {
         offsetX: 0,
         offsetY: 0,
@@ -38,6 +40,34 @@ const GameState = {
             x: 0,
             y: 0,
             size: 40
+        },
+
+        menu: {
+            buttons: [
+                { id: 'start',          label: 'Iniciar Entrenamiento'  , x: 0, y: 0, w: 340, h: 56 },
+                { id: 'glossary',       label: 'Glosario'               , x: 0, y: 0, w: 340, h: 56 },
+                { id: 'challeges',      label: 'Retos'                  , x: 0, y: 0, w: 340, h: 56 },
+                { id: 'settings',       label: 'Configuraciones'        , x: 0, y: 0, w: 340, h: 56 },
+                { id: 'leaderboard',    label: 'Marcador'               , x: 0, y: 0, w: 340, h: 56 },
+                { id: 'about' ,         label: 'Acerca de'              , x: 0, y: 0, w: 340, h: 56 }
+            ]
+        },
+
+        glossary: {
+            backBtn: { x: 0, y: 0, w: 140, h: 44 },
+            scrollY: 0,
+            rowH: 58,
+            padding: 18
+        },
+        settings: {
+            backBtn: { x: 0, y: 0, w: 140, h: 44 },
+
+        },
+        leaderboard: {
+            backBtn: { x: 0, y: 0, w: 140, h: 44 },
+        },
+        about: {
+            backBtn: { x: 0, y: 0, w: 140, h: 44 },
         }
     },
 
@@ -162,10 +192,74 @@ function screenToWorld(x, y) {
 
 
 // ============================================================
+// Main menu utilities
+// ============================================================
+function pointInRect(px, py, r) {
+    return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+}
+
+function drawButton(ctx, r, label, hovered = false) {
+    ctx.save();
+    ctx.fillStyle = hovered ? '#2a2a55' : '#181830';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(r.x, r.y, r.w, r.h, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 20px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, r.x + r.w / 2, r.y + r.h / 2);
+    ctx.restore();
+}
+
+// Handle menu actions
+function handleMenuAction(id) {
+    switch (id) {
+        case 'start':
+            GameState.screen = 'TRAINING';
+            GameState.input.active = false; // optional
+            break;
+
+        case 'glossary':
+            GameState.screen = 'GLOSSARY';
+            break;
+
+        // Add new actions here:
+        case 'settings':
+            console.log('TODO: settings screen');
+            // GameState.screen = 'SETTINGS';
+            break;
+
+        case 'scores':
+            console.log('TODO: scoreboard screen');
+            // GameState.screen = 'SCORES';
+            break;
+
+        default:
+            console.warn('Unknown menu action:', id);
+    }
+}
+
+
+// ============================================================
 // Main Draw Function
 // ============================================================
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Route to screen draw
+    if (GameState.screen === 'MENU') {
+        drawMenu();
+        return;
+    }
+    if (GameState.screen === 'GLOSSARY') {
+        drawGlossary();
+        return;
+    }
 
     // Calculate secondary line alpha based on scale
     let secondaryAlpha = 0.5;
@@ -424,6 +518,175 @@ function draw() {
 
 }
 
+// ============================================================
+// Menu Drawing
+// ============================================================
+function drawMenu() {
+    ctx.save();
+    ctx.fillStyle = '#0b0b1a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const buttons = GameState.ui.menu.buttons;
+    const mx = GameState.uiMouse?.x ?? -9999;
+    const my = GameState.uiMouse?.y ?? -9999;
+
+    // --- Tunables ---
+    const titleFontPx = 42;
+    const subtitleFontPx = 16;
+    const titleGap = 10;         // gap between title and subtitle
+    const titleToButtonsGap = 28; // gap between subtitle and first button
+    const buttonGap = 16;
+    const buttonH = 58;
+    const buttonW = Math.min(380, canvas.width * 0.72);
+
+    // Approximate title block height (stable and simple)
+    const titleBlockH = titleFontPx + titleGap + subtitleFontPx;
+
+    // Buttons block height
+    const buttonsH = buttons.length * buttonH + Math.max(0, buttons.length - 1) * buttonGap;
+
+    // Total menu block height (title + spacing + buttons)
+    const totalBlockH = titleBlockH + titleToButtonsGap + buttonsH;
+
+    // Center the whole block vertically
+    const blockTopY = (canvas.height - totalBlockH) / 2;
+
+    // --- Draw Title/Sub ---
+    const titleCenterY = blockTopY + titleFontPx / 2;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.font = `bold ${titleFontPx}px "IBM Plex Mono", monospace`;
+    ctx.fillText('CAD Trainer', canvas.width / 2, titleCenterY);
+
+    ctx.font = `${subtitleFontPx}px "IBM Plex Mono", monospace`;
+    ctx.globalAlpha = 0.85;
+    ctx.fillText('Entrena tus habilidades de CAD (Diseño Asistido por Computadora).', canvas.width / 2, titleCenterY + (titleFontPx / 2) + titleGap + (subtitleFontPx / 2));
+    ctx.globalAlpha = 1.0;
+
+    // --- Layout + Draw Buttons ---
+    const startY = blockTopY + titleBlockH + titleToButtonsGap;
+    const x = canvas.width / 2 - buttonW / 2;
+
+    for (let i = 0; i < buttons.length; i++) {
+        const b = buttons[i];
+
+        b.w = buttonW;
+        b.h = buttonH;
+        b.x = x;
+        b.y = startY + i * (buttonH + buttonGap);
+
+        const hovered = pointInRect(mx, my, b);
+        drawButton(ctx, b, b.label, hovered);
+    }
+
+    ctx.restore();
+}
+
+
+// ============================================================
+// Glossary Drawing
+// ============================================================
+function drawGlossary() {
+    const g = GameState.ui.glossary;
+
+    ctx.save();
+    ctx.fillStyle = '#0b0b1a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Header
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 34px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Glossary', g.padding, g.padding);
+
+    // Back button
+    g.backBtn.w = 140;
+    g.backBtn.h = 44;
+    g.backBtn.x = canvas.width - g.padding - g.backBtn.w;
+    g.backBtn.y = g.padding;
+
+    const mx = GameState.uiMouse?.x ?? -9999;
+    const my = GameState.uiMouse?.y ?? -9999;
+    const hoverBack = pointInRect(mx, my, g.backBtn);
+    drawButton(ctx, g.backBtn, 'Back', hoverBack);
+
+    // List panel
+    const panelX = g.padding;
+    const panelY = g.padding + 70;
+    const panelW = canvas.width - g.padding * 2;
+    const panelH = canvas.height - panelY - g.padding;
+
+    ctx.fillStyle = '#101025';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    // Clip to panel for scrolling
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, 12);
+    ctx.clip();
+
+    const cmds = GameState.commands || [];
+    const rowH = g.rowH;
+
+    // Compute scroll bounds
+    const contentH = cmds.length * rowH;
+    const maxScroll = Math.max(0, contentH - panelH + 10);
+    g.scrollY = Math.max(0, Math.min(g.scrollY, maxScroll));
+
+    const startIndex = Math.floor(g.scrollY / rowH);
+    const endIndex = Math.min(cmds.length, startIndex + Math.ceil(panelH / rowH) + 2);
+
+    // Draw rows
+    let y = panelY - (g.scrollY % rowH);
+
+    for (let i = startIndex; i < endIndex; i++) {
+        const cmd = cmds[i];
+        const rowY = y + (i - startIndex) * rowH;
+
+        // Row background strip
+        ctx.fillStyle = (i % 2 === 0) ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.00)';
+        ctx.fillRect(panelX, rowY, panelW, rowH);
+
+        // Text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 16px "IBM Plex Mono", monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+
+        // Command (top line)
+        ctx.fillText(cmd.command ?? '', panelX + 14, rowY + 10);
+
+        // Short + description (second line)
+        ctx.font = '14px "IBM Plex Mono", monospace';
+        ctx.globalAlpha = 0.9;
+        const secondLine = `${cmd.short ?? ''} — ${cmd.long ?? ''}`;
+        wrapText(ctx, secondLine, panelX + 14, rowY + 32, panelW - 28, 18);
+        ctx.globalAlpha = 1.0;
+    }
+
+    ctx.restore(); // unclipped
+
+    // Footer hint
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.globalAlpha = 0.75;
+    ctx.font = '14px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('Scroll wheel to browse.', g.padding, canvas.height - g.padding);
+    ctx.restore();
+}
+
+
+
 
 // ============================================================
 // Command Token Parsing and Drawing
@@ -574,7 +837,7 @@ function measureCommandTokens(ctx, tokens) {
 }
 
 function drawIcon(ctx, x, y, button = null, label = null, text = null) {
-    console.log(button, label, text);
+    // console.log(button, label, text);
     if (button !== null && text === null) {
         return drawMouseIcon(ctx, x, y, button, label);
     }
@@ -653,8 +916,16 @@ function drawKeyIcon(ctx, x, y, text) {
 // UI Interaction Events
 // ============================================================
 
-// Hover detection for info box
+// Hover detection for info box + track UI mouse position
 canvas.addEventListener('mousemove', (e) => {
+
+    // Store last mouse position for canvas-based UI (menu buttons, back button, etc.)
+    GameState.uiMouse = { x: e.offsetX, y: e.offsetY };
+
+    // Only non-menu screens
+    if (GameState.screen !== 'TRAINING' && GameState.screen !== 'CHALLENGES') return;
+
+    // Hover detection for info box
     const { x, y, size } = GameState.ui.infoBox;
 
     GameState.ui.commandInfoHovered =
@@ -663,6 +934,41 @@ canvas.addEventListener('mousemove', (e) => {
         e.offsetY >= y &&
         e.offsetY <= y + size;
 });
+
+// Menu / Glossary click routing (canvas UI)
+canvas.addEventListener('mousedown', (e) => {
+    // Only left click for UI buttons
+    if (e.button !== 0) return;
+
+    const mx = e.offsetX;
+    const my = e.offsetY;
+
+    if (GameState.screen === 'MENU') {
+        const buttons = GameState.ui.menu.buttons;
+
+        for (const b of buttons) {
+            if (pointInRect(mx, my, b)) {
+                handleMenuAction(b.id);
+                return;
+            }
+        }
+        return;
+    }
+
+    if (GameState.screen === 'GLOSSARY') {
+        const back = GameState.ui.glossary.backBtn;
+
+        if (pointInRect(mx, my, back)) {
+            GameState.screen = 'MENU';
+            return;
+        }
+
+        return; // consume click while in glossary
+    }
+
+    // If TRAINING, do nothing here; let training handlers run.
+});
+
 
 // ============================================================
 // Text Wrapping Utility
@@ -698,6 +1004,11 @@ setInterval(() => {
 
 // Deactivate text input on outside click
 window.addEventListener('mousedown', (e) => {
+
+    // Only non-menu screens
+    if (GameState.screen !== 'TRAINING' && GameState.screen !== 'CHALLENGES') return;
+
+    // If click is outside canvas, deactivate input
     if (e.target !== canvas) {
         GameState.input.active = false;
         if (GameState.debugMode) {
@@ -729,7 +1040,11 @@ function getVisibleInputText(ctx, text, font, boxWidth, padding) {
 
 // Text imput handling
 window.addEventListener('keydown', (e) =>{
-    
+
+    // Only non-menu screens
+    if (GameState.screen !== 'TRAINING' && GameState.screen !== 'CHALLENGES') return;
+
+    // Only when input is active
     if (!GameState.input.active) return;
 
     e.preventDefault();
@@ -762,25 +1077,44 @@ window.addEventListener('keydown', (e) =>{
 // ============================================================
 
 // Double-click to spawn a target
-canvas.addEventListener('dblclick', (e) =>{
+canvas.addEventListener('dblclick', (e) => {
+
+    // Only non-menu screens
+    if (GameState.screen !== 'TRAINING' && GameState.screen !== 'CHALLENGES') return;
+
+    // Get world coordinates
     const {
         x,
         y
     } = screenToWorld(e.offsetX, e.offsetY);
+
+    // Spawn new target
     GameState.targets.push(
         new Target(x, y, GameState.targets.length + 1)
     );
+
+    // Debug log
     if (GameState.debugMode) {
         console.log(`Spawned target ${GameState.targets.length} at (${x.toFixed(2)}, ${y.toFixed(2)})`);
     }
 });
 
-// Hover detection
+// Target hover detection
 canvas.addEventListener('mousemove', (e) => {
+
+    // Only non-menu screens
+    if (GameState.screen !== 'TRAINING' && GameState.screen !== 'CHALLENGES') return;
+
+    // Get world coordinates
     const world = screenToWorld(e.offsetX, e.offsetY);
 
+    // Reset all hover states
     for (const target of GameState.targets) {
+
+        // Update hover state
         target.hovered = target.containsPoint(world.x, world.y);
+
+        // Debug log
         if (target.hovered && GameState.debugMode) {
             console.log(`Hovering over target ${target.id}`);
         }
@@ -789,11 +1123,19 @@ canvas.addEventListener('mousemove', (e) => {
 
 // Click to toggle target selection
 canvas.addEventListener('mousedown', (e) => {
+
+    // Only non-menu screens
+    if (GameState.screen !== 'TRAINING' && GameState.screen !== 'CHALLENGES') return;
+
+    // Only left button
     if (e.button !== 0) return;
 
+    // Get world coordinates
     const world = screenToWorld(e.offsetX, e.offsetY);
 
+    // Check targets for hit
     for (const target of GameState.targets) {
+        // Check hit
         if (target.containsPoint(world.x, world.y)) {
             // TOGGLE selection state
             target.selected = !target.selected;
@@ -917,8 +1259,17 @@ window.addEventListener('resize', () =>{
     }
 });
 
-// Zoom with mouse wheel
+// Wheel event management
 canvas.addEventListener('wheel', (e) => {
+    // Glossary scrolling
+    if (GameState.screen === 'GLOSSARY') {
+        GameState.ui.glossary.scrollY += e.deltaY;
+        return;
+    }
+
+    // Only non-menu screens
+    if (GameState.screen !== 'TRAINING' && GameState.screen !== 'CHALLENGES') return;
+
     e.preventDefault();
     const mouse = screenToWorld(e.offsetX, e.offsetY);
     const zoom = e.deltaY < 0 ? 1.1 : 0.9;
@@ -938,8 +1289,13 @@ canvas.addEventListener('wheel', (e) => {
 });
 
 
-// Mouse events for panning
+// Panning
+// Start panning on middle mouse down
 canvas.addEventListener('mousedown', (e) => {
+
+    // Only non-menu screens
+    if (GameState.screen !== 'TRAINING' && GameState.screen !== 'CHALLENGES') return;
+
     // 1. Activate text input focus
     GameState.input.active = true;
 
@@ -964,6 +1320,11 @@ canvas.addEventListener('mousedown', (e) => {
 
 // Mouse move for panning
 window.addEventListener('mousemove', (e) => {
+
+    // Only non-menu screens
+    if (GameState.screen !== 'TRAINING' && GameState.screen !== 'CHALLENGES') return;
+
+    // Panning with middle mouse button
     if (GameState.mouse.isDragging) {
         const dx = (e.clientX - GameState.mouse.lastX) / GameState.viewport.scale;
         const dy = (e.clientY - GameState.mouse.lastY) / GameState.viewport.scale;
@@ -976,8 +1337,14 @@ window.addEventListener('mousemove', (e) => {
 
 // Stop panning on mouse up
 window.addEventListener('mouseup', (e) => {
-    if (e.button !== 1) return; // Only middle mouse button)
+
+    // Only non-menu screens
+    if (GameState.screen !== 'TRAINING' && GameState.screen !== 'CHALLENGES') return;
+
+    // Only middle mouse button)
+    if (e.button !== 1) return; 
     GameState.mouse.isDragging = false;
+
     // Debug log
     if (GameState.debugMode) {
         console.log('Stopped panning:');
